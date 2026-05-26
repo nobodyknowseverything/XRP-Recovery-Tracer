@@ -17,7 +17,6 @@
     <div class="max-w-6xl mx-auto bg-white shadow-2xl rounded-3xl overflow-hidden">
         <div class="bg-gradient-to-r from-blue-700 to-indigo-700 text-white p-8">
             <h1 class="text-4xl font-bold">XRP Stolen Asset Recovery Tracer</h1>
-            <p class="opacity-90">For victims of DEXpool.io and similar scams</p>
         </div>
 
         <div class="p-8 space-y-8">
@@ -25,10 +24,9 @@
                 <strong>How to use:</strong><br>
                 1. Fill your personal details<br>
                 2. Paste your original Transaction Hash(es)<br>
-                3. Paste a starting address (sending or receiving)<br>
-                4. Click "Trace Address"<br>
-                5. Use "Trace Next →" on large yellow rows<br>
-                6. Generate PDF for authorities
+                3. Start tracing from your sending or receiving address<br>
+                4. Click "Trace Next" on large outgoing transfers<br>
+                5. Generate PDF for authorities
             </div>
 
             <div class="bg-gray-50 p-6 rounded-2xl">
@@ -41,9 +39,9 @@
             </div>
 
             <div class="bg-gray-50 p-6 rounded-2xl">
-                <h3 class="font-bold mb-3">Your Original Transaction Hashes (for green highlight)</h3>
-                <input id="originalTx1" placeholder="First Tx Hash" class="w-full p-3 border rounded-xl mb-2 font-mono text-sm" value="">
-                <input id="originalTx2" placeholder="Second Tx Hash (optional)" class="w-full p-3 border rounded-xl font-mono text-sm" value="">
+                <h3 class="font-bold mb-3">Your Original Transaction Hashes</h3>
+                <input id="originalTx1" placeholder="First Tx Hash" class="w-full p-3 border rounded-xl mb-2 font-mono text-sm">
+                <input id="originalTx2" placeholder="Second Tx Hash (optional)" class="w-full p-3 border rounded-xl font-mono text-sm">
             </div>
 
             <div class="flex gap-3">
@@ -53,12 +51,8 @@
             </div>
 
             <div class="flex gap-3">
-                <button onclick="goBack()" id="backBtn" class="hidden bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-2xl font-medium">
-                    ← Back
-                </button>
-                <button onclick="resetAll()" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-2xl font-medium">
-                    Reset All
-                </button>
+                <button onclick="goBack()" id="backBtn" class="hidden bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-2xl font-medium">← Back</button>
+                <button onclick="resetAll()" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-2xl font-medium">Reset All</button>
             </div>
 
             <div id="results" class="min-h-[500px]"></div>
@@ -75,13 +69,22 @@
         let traceHistory = [];
         let currentIndex = -1;
 
+        const knownLabels = {
+            "r48Q14ZK8QVEG35ShkuuugnnBCy11exAVr": "DEXpool Liquidity Pool"
+        };
+
         function resetAll() {
             if (confirm("Reset everything and start fresh?")) {
                 traceHistory = [];
                 currentIndex = -1;
                 document.getElementById('results').innerHTML = '';
-                document.getElementById('query').value = '';
                 document.getElementById('backBtn').classList.add('hidden');
+                document.getElementById('query').value = '';
+                document.getElementById('originalTx1').value = '';
+                document.getElementById('originalTx2').value = '';
+                document.getElementById('yourName').value = '';
+                document.getElementById('yourEmail').value = '';
+                document.getElementById('lostAmount').value = '';
             }
         }
 
@@ -120,14 +123,17 @@
                         </tr>`;
                 }).join('');
 
+            const hopLabel = knownLabels[hop.address] || hop.address;
+
             document.getElementById('results').innerHTML = `
                 <div class="bg-white p-8 rounded-3xl border">
-                    <h2 class="text-2xl font-bold">Hop ${currentIndex+1}: ${hop.address}</h2>
+                    <h2 class="text-2xl font-bold">Hop: ${hopLabel}</h2>
+                    <p class="text-sm text-gray-500 mt-1 break-all">${hop.address}</p>
                     <p class="mt-2"><strong>Balance:</strong> ${hop.balance}</p>
                     <div class="overflow-auto max-h-[700px] mt-6 border rounded-2xl">
                         <table class="w-full text-sm">
                             <thead class="bg-gray-100 sticky top-0">
-                                <tr><th class="p-4">Date & Time</th><th class="p-4">Destination</th><th class="p-4 text-right">Amount</th><th></th></tr>
+                                <tr><th class="p-4">Date & Time</th><th class="p-4">Destination Address</th><th class="p-4 text-right">Amount</th><th></th></tr>
                             </thead>
                             <tbody>${rows}</tbody>
                         </table>
@@ -184,14 +190,9 @@
             doc.text(`Email: ${document.getElementById('yourEmail').value}`, margin, y); y += 7;
             doc.text(`Claimed Loss: ${document.getElementById('lostAmount').value} XRP`, margin, y); y += 20;
 
-            doc.setFontSize(12);
-            doc.text("Original Transaction Hashes:", margin, y); y += 8;
-            doc.setFontSize(10);
-            doc.text(document.getElementById('originalTx1').value || "Not provided", margin, y); y += 6;
-            doc.text(document.getElementById('originalTx2').value || "", margin, y); y += 15;
-
             traceHistory.forEach((hop, i) => {
                 if (y > 240) { doc.addPage(); y = 25; }
+
                 doc.setFontSize(14);
                 doc.text(`Hop ${i+1}:`, margin, y);
                 y += 8;
@@ -207,21 +208,24 @@
 
                 hop.txs.sort((a,b) => Number(b.Amount?.value || 0) - Number(a.Amount?.value || 0)).slice(0,20).forEach(tx => {
                     if (y > 260) { doc.addPage(); y = 25; }
+
                     let dateStr = 'N/A';
                     try { dateStr = new Date(tx.date).toLocaleString(); } catch(e) {}
+
                     const amt = (Number(tx.Amount?.value || 0) / 1000000).toLocaleString();
                     const counter = tx.Destination || 'N/A';
+                    const displayCounter = counter === "r48Q14ZK8QVEG35ShkuuugnnBCy11exAVr" ? "DEXpool Liquidity Pool" : counter;
                     const isMyTx = (tx.hash === document.getElementById('originalTx1').value || tx.hash === document.getElementById('originalTx2').value);
 
                     doc.text(`${dateStr}   ${amt} XRP`, margin, y);
                     y += 7;
-                    const counterLines = doc.splitTextToSize(counter, 160);
+                    const counterLines = doc.splitTextToSize(displayCounter, 160);
                     doc.text(counterLines, margin + 5, y);
                     y += counterLines.length * 6 + 4;
 
                     if (isMyTx) {
                         doc.setFontSize(10);
-                        doc.text("← YOUR TRANSACTION (55k / 10.47k)", margin + 5, y);
+                        doc.text("← YOUR TRANSACTION", margin + 5, y);
                         doc.setFontSize(11);
                         y += 8;
                     }
@@ -232,7 +236,7 @@
             doc.setFontSize(10);
             doc.text("Report generated from public XRPL data via xrpscan.com.", margin, y + 20);
 
-            doc.save("XRP_Recovery_Report.pdf");
+            doc.save("DEXpool_Recovery_Report.pdf");
             alert("✅ PDF Generated!");
         }
 
