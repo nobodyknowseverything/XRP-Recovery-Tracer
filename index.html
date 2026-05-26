@@ -23,11 +23,12 @@
         <div class="p-8 space-y-8">
             <div class="bg-blue-50 border border-blue-200 p-6 rounded-2xl">
                 <strong>How to use:</strong><br>
-                1. Fill your details<br>
-                2. Paste your original Tx Hash(es)<br>
-                3. Start tracing from sending/receiving address<br>
-                4. Click "Trace Next" on large outgoing amounts<br>
-                5. Generate PDF for authorities
+                1. Fill your personal details<br>
+                2. Paste your original Transaction Hash(es)<br>
+                3. Paste a starting address (sending or receiving)<br>
+                4. Click "Trace Address"<br>
+                5. Use "Trace Next →" on large yellow rows<br>
+                6. Generate PDF for authorities
             </div>
 
             <div class="bg-gray-50 p-6 rounded-2xl">
@@ -35,32 +36,36 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input id="yourName" placeholder="Full Name" class="p-3 border rounded-xl">
                     <input id="yourEmail" placeholder="Email" class="p-3 border rounded-xl">
-                    <input id="lostAmount" placeholder="Lost Amount (e.g. 55000)" class="p-3 border rounded-xl">
+                    <input id="lostAmount" placeholder="Lost Amount" class="p-3 border rounded-xl" value="55000">
                 </div>
             </div>
 
             <div class="bg-gray-50 p-6 rounded-2xl">
-                <h3 class="font-bold mb-3">Your Original Transaction Hash(es)</h3>
-                <input id="originalTx1" placeholder="First Tx Hash" class="w-full p-3 border rounded-xl mb-2 font-mono text-sm">
-                <input id="originalTx2" placeholder="Second Tx Hash (optional)" class="w-full p-3 border rounded-xl font-mono text-sm">
+                <h3 class="font-bold mb-3">Your Original Transaction Hashes (for green highlight)</h3>
+                <input id="originalTx1" placeholder="First Tx Hash" class="w-full p-3 border rounded-xl mb-2 font-mono text-sm" value="">
+                <input id="originalTx2" placeholder="Second Tx Hash (optional)" class="w-full p-3 border rounded-xl font-mono text-sm" value="">
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div class="md:col-span-3">
-                    <input type="text" id="query" placeholder="Paste address or Tx hash here" 
-                           class="w-full p-4 border rounded-2xl text-lg font-mono">
-                </div>
-                <button onclick="startNewTrace()" class="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-medium">Trace</button>
+            <div class="flex gap-3">
+                <input type="text" id="query" placeholder="Paste address or Tx hash here" 
+                       class="flex-1 p-4 border rounded-2xl text-lg font-mono">
+                <button onclick="startNewTrace()" class="bg-blue-600 hover:bg-blue-700 text-white px-8 rounded-2xl font-medium">Trace</button>
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="goBack()" id="backBtn" class="hidden bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-2xl font-medium">
+                    ← Back
+                </button>
+                <button onclick="resetAll()" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-2xl font-medium">
+                    Reset All
+                </button>
             </div>
 
             <div id="results" class="min-h-[500px]"></div>
 
-            <div class="flex gap-4 justify-center mt-8">
-                <button onclick="generateFullPDF()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-5 rounded-3xl text-lg font-bold inline-flex items-center gap-3">
-                    <i class="fas fa-file-pdf"></i> Generate PDF Report
-                </button>
-                <button onclick="resetAll()" class="bg-gray-600 hover:bg-gray-700 text-white px-10 py-5 rounded-3xl text-lg font-bold inline-flex items-center gap-3">
-                    <i class="fas fa-trash"></i> Reset All
+            <div class="text-center mt-8">
+                <button onclick="generateFullPDF()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-12 py-6 rounded-3xl text-xl font-bold inline-flex items-center gap-3">
+                    <i class="fas fa-file-pdf"></i> Generate PDF Report for Authorities
                 </button>
             </div>
         </div>
@@ -68,27 +73,71 @@
 
     <script>
         let traceHistory = [];
+        let currentIndex = -1;
 
         function resetAll() {
             if (confirm("Reset everything and start fresh?")) {
                 traceHistory = [];
+                currentIndex = -1;
                 document.getElementById('results').innerHTML = '';
                 document.getElementById('query').value = '';
-                document.getElementById('originalTx1').value = '';
-                document.getElementById('originalTx2').value = '';
-                document.getElementById('yourName').value = '';
-                document.getElementById('yourEmail').value = '';
-                document.getElementById('lostAmount').value = '';
-                alert("✅ Tool has been reset.");
+                document.getElementById('backBtn').classList.add('hidden');
             }
+        }
+
+        function goBack() {
+            if (currentIndex > 0) {
+                currentIndex--;
+                showCurrentHop();
+            }
+        }
+
+        function showCurrentHop() {
+            const hop = traceHistory[currentIndex];
+            const tx1 = document.getElementById('originalTx1').value.trim();
+            const tx2 = document.getElementById('originalTx2').value.trim();
+
+            let rows = hop.txs
+                .sort((a,b) => Number(b.Amount?.value || 0) - Number(a.Amount?.value || 0))
+                .map(tx => {
+                    let dateStr = 'N/A';
+                    try { dateStr = new Date(tx.date).toLocaleString(); } catch(e) {}
+
+                    const amt = Number(tx.Amount?.value || 0) / 1000000;
+                    const counterparty = tx.Destination || 'N/A';
+                    const isMyTx = (tx.hash === tx1 || tx.hash === tx2);
+
+                    const rowClass = (amt >= 5000 ? 'large ' : '') + (isMyTx ? 'victim' : '');
+
+                    return `
+                        <tr class="${rowClass}">
+                            <td class="p-3">${dateStr}</td>
+                            <td class="p-3 font-mono break-all">${counterparty}</td>
+                            <td class="p-3 text-right font-bold">${amt.toLocaleString()} XRP</td>
+                            <td class="p-3">
+                                <button onclick="document.getElementById('query').value='${counterparty}';startNewTrace()" class="bg-blue-600 text-white px-5 py-2 rounded text-sm">Trace Next →</button>
+                            </td>
+                        </tr>`;
+                }).join('');
+
+            document.getElementById('results').innerHTML = `
+                <div class="bg-white p-8 rounded-3xl border">
+                    <h2 class="text-2xl font-bold">Hop ${currentIndex+1}: ${hop.address}</h2>
+                    <p class="mt-2"><strong>Balance:</strong> ${hop.balance}</p>
+                    <div class="overflow-auto max-h-[700px] mt-6 border rounded-2xl">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-100 sticky top-0">
+                                <tr><th class="p-4">Date & Time</th><th class="p-4">Destination</th><th class="p-4 text-right">Amount</th><th></th></tr>
+                            </thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>
+                </div>`;
         }
 
         async function startNewTrace() {
             const query = document.getElementById('query').value.trim();
-            if (!query) return alert("Please enter an address or transaction hash");
-
-            const tx1 = document.getElementById('originalTx1').value.trim();
-            const tx2 = document.getElementById('originalTx2').value.trim();
+            if (!query) return alert("Enter an address or Tx hash");
 
             const resultsDiv = document.getElementById('results');
             resultsDiv.innerHTML = `<div class="flex justify-center py-20"><i class="fas fa-spinner fa-spin text-6xl text-blue-500"></i></div>`;
@@ -102,50 +151,17 @@
                 let outgoing = (txData.transactions || []).filter(tx => tx.Account === query);
 
                 traceHistory.push({ address: query, balance: (Number(acc.xrpBalance || acc.Balance) / 1000000).toLocaleString() + " XRP", txs: outgoing });
+                currentIndex = traceHistory.length - 1;
 
-                let rows = outgoing
-                    .sort((a,b) => Number(b.Amount?.value || 0) - Number(a.Amount?.value || 0))
-                    .map(tx => {
-                        let dateStr = 'N/A';
-                        try { dateStr = new Date(tx.date).toLocaleString(); } catch(e) {}
-
-                        const amt = Number(tx.Amount?.value || 0) / 1000000;
-                        const counterparty = tx.Destination || 'N/A';
-                        const isMyTx = (tx.hash === tx1 || tx.hash === tx2);
-
-                        const rowClass = (amt >= 5000 ? 'large ' : '') + (isMyTx ? 'victim' : '');
-
-                        return `
-                            <tr class="${rowClass}">
-                                <td class="p-3">${dateStr}</td>
-                                <td class="p-3 font-mono break-all">${counterparty}</td>
-                                <td class="p-3 text-right font-bold">${amt.toLocaleString()} XRP</td>
-                                <td class="p-3">
-                                    <button onclick="document.getElementById('query').value='${counterparty}';startNewTrace()" class="bg-blue-600 text-white px-5 py-2 rounded text-sm">Trace Next →</button>
-                                </td>
-                            </tr>`;
-                    }).join('');
-
-                resultsDiv.innerHTML = `
-                    <div class="bg-white p-8 rounded-3xl border">
-                        <h2 class="text-2xl font-bold">Hop: ${query}</h2>
-                        <p class="mt-2"><strong>Balance:</strong> ${traceHistory[traceHistory.length-1].balance}</p>
-                        <div class="overflow-auto max-h-[700px] mt-6 border rounded-2xl">
-                            <table class="w-full text-sm">
-                                <thead class="bg-gray-100 sticky top-0">
-                                    <tr><th class="p-4">Date & Time</th><th class="p-4">Destination Address</th><th class="p-4 text-right">Amount</th><th></th></tr>
-                                </thead>
-                                <tbody>${rows}</tbody>
-                            </table>
-                        </div>
-                    </div>`;
+                document.getElementById('backBtn').classList.remove('hidden');
+                showCurrentHop();
             } catch (e) {
                 resultsDiv.innerHTML = `<div class="p-8 text-red-600">Error: ${e.message}</div>`;
             }
         }
 
         function generateFullPDF() {
-            if (traceHistory.length === 0) return alert("Please trace at least one address first");
+            if (traceHistory.length === 0) return alert("Trace some addresses first");
 
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('p', 'mm', 'a4');
@@ -176,7 +192,6 @@
 
             traceHistory.forEach((hop, i) => {
                 if (y > 240) { doc.addPage(); y = 25; }
-
                 doc.setFontSize(14);
                 doc.text(`Hop ${i+1}:`, margin, y);
                 y += 8;
@@ -192,10 +207,8 @@
 
                 hop.txs.sort((a,b) => Number(b.Amount?.value || 0) - Number(a.Amount?.value || 0)).slice(0,20).forEach(tx => {
                     if (y > 260) { doc.addPage(); y = 25; }
-
                     let dateStr = 'N/A';
                     try { dateStr = new Date(tx.date).toLocaleString(); } catch(e) {}
-
                     const amt = (Number(tx.Amount?.value || 0) / 1000000).toLocaleString();
                     const counter = tx.Destination || 'N/A';
                     const isMyTx = (tx.hash === document.getElementById('originalTx1').value || tx.hash === document.getElementById('originalTx2').value);
@@ -208,7 +221,7 @@
 
                     if (isMyTx) {
                         doc.setFontSize(10);
-                        doc.text("← YOUR TRANSACTION", margin + 5, y);
+                        doc.text("← YOUR TRANSACTION (55k / 10.47k)", margin + 5, y);
                         doc.setFontSize(11);
                         y += 8;
                     }
@@ -217,11 +230,10 @@
             });
 
             doc.setFontSize(10);
-            doc.text("Report generated from public XRPL blockchain data via xrpscan.com.", margin, y + 20);
-            doc.text("All transactions are independently verifiable.", margin, y + 28);
+            doc.text("Report generated from public XRPL data via xrpscan.com.", margin, y + 20);
 
             doc.save("XRP_Recovery_Report.pdf");
-            alert("✅ Authority-ready PDF Generated!");
+            alert("✅ PDF Generated!");
         }
 
         window.onload = () => {};
