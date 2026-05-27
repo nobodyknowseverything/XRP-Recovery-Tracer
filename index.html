@@ -24,7 +24,7 @@
                 <strong>How to use:</strong><br>
                 1. Fill your personal details<br>
                 2. Paste your original Transaction Hash(es)<br>
-                3. Start tracing from your sending or receiving address<br>
+                3. Start tracing from sending or receiving address<br>
                 4. Click "Trace Next" on large outgoing transfers<br>
                 5. Generate PDF for authorities
             </div>
@@ -69,9 +69,19 @@
         let traceHistory = [];
         let currentIndex = -1;
 
+        // Expanded known exchange / hot wallet labels
         const knownLabels = {
-            "r48Q14ZK8QVEG35ShkuuugnnBCy11exAVr": "DEXpool Liquidity Pool"
+            "r48Q14ZK8QVEG35ShkuuugnnBCy11exAVr": "DEXpool Liquidity Pool",
+            "rs2dgzYeqYqsk8bvkQR5YPyqsXYcA24MP2": "MEXC Exchange Hot Wallet",
+            "rnBKit9uv2L3pH8HQwPKpDJhhwACKct3ro": "WhiteBIT Exchange Hot Wallet",
+            "rPyCQm8E5j78PDbrfKF24fRC7qUAk1kDMZ": "Large Holder / Possible Exchange Wallet"
+            // Add more below as you find them:
+            // "newaddresshere": "Binance Hot Wallet",
         };
+
+        function getLabel(address) {
+            return knownLabels[address] || address;
+        }
 
         function resetAll() {
             if (confirm("Reset everything and start fresh?")) {
@@ -123,13 +133,13 @@
                         </tr>`;
                 }).join('');
 
-            const hopLabel = knownLabels[hop.address] || hop.address;
+            const hopLabel = getLabel(hop.address);
 
             document.getElementById('results').innerHTML = `
                 <div class="bg-white p-8 rounded-3xl border">
                     <h2 class="text-2xl font-bold">Hop: ${hopLabel}</h2>
                     <p class="text-sm text-gray-500 mt-1 break-all">${hop.address}</p>
-                    <p class="mt-2"><strong>Balance:</strong> ${hop.balance}</p>
+                    <p class="mt-3 text-lg"><strong>Balance:</strong> ${hop.balance}</p>
                     <div class="overflow-auto max-h-[700px] mt-6 border rounded-2xl">
                         <table class="w-full text-sm">
                             <thead class="bg-gray-100 sticky top-0">
@@ -194,7 +204,8 @@
                 if (y > 240) { doc.addPage(); y = 25; }
 
                 doc.setFontSize(14);
-                doc.text(`Hop ${i+1}:`, margin, y);
+                const hopLabel = getLabel(hop.address);
+                doc.text(`Hop ${i+1}: ${hopLabel}`, margin, y);
                 y += 8;
                 const addrLines = doc.splitTextToSize(hop.address, 165);
                 doc.text(addrLines, margin, y);
@@ -214,7 +225,7 @@
 
                     const amt = (Number(tx.Amount?.value || 0) / 1000000).toLocaleString();
                     const counter = tx.Destination || 'N/A';
-                    const displayCounter = counter === "r48Q14ZK8QVEG35ShkuuugnnBCy11exAVr" ? "DEXpool Liquidity Pool" : counter;
+                    const displayCounter = getLabel(counter);
                     const isMyTx = (tx.hash === document.getElementById('originalTx1').value || tx.hash === document.getElementById('originalTx2').value);
 
                     doc.text(`${dateStr}   ${amt} XRP`, margin, y);
